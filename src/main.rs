@@ -1,8 +1,7 @@
 use clap::Parser;
-use md5::{Digest, Md5};
-use sha2::Sha256;
 use std::fs::File;
-use std::io::{self, Read};
+use std::io::{self, Seek, Read};
+use digest::DynDigest;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -16,35 +15,38 @@ fn open_file(path: &String) -> Result<File, std::io::Error> {
     Ok(file) // If successful, return the file
 }
 
-fn generate_md5(file: &mut File) -> io::Result<String> {
-    let mut hasher = Md5::new();
+fn select_hasher(s: &str) -> Box<dyn DynDigest> {
+    match s {
+        "md5" => Box::new(md5::Md5::default()),
+        "sha1" => Box::new(sha1::Sha1::default()),
+        "sha224" => Box::new(sha2::Sha224::default()),
+        "sha256" => Box::new(sha2::Sha256::default()),
+        "sha384" => Box::new(sha2::Sha384::default()),
+        "sha512" => Box::new(sha2::Sha512::default()),
+        _ => unimplemented!("unsupported digest: {}", s),
+    }
+}
+
+fn bytes_to_hex_string(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{:02x}", b)).collect()
+}
+
+fn generate_hash(file: &mut File, hash: &mut Box<dyn DynDigest>) -> io::Result<String> {
     let mut buffer = [0u8; 1024];
+    file.seek(std::io::SeekFrom::Start(0))?;
 
     while let Ok(byte_read) = file.read(&mut buffer) {
         if byte_read == 0 {
             break;
         }
-        hasher.update(&buffer[..byte_read]);
+        hash.update(&buffer[..byte_read]);
     }
 
-    let result = hasher.finalize();
-    Ok(format!("{:x}", result))
+    let result =  hash.finalize_reset();
+    Ok(bytes_to_hex_string(&result))
 }
 
-fn generate_sha256(file: &mut File) -> io::Result<String> {
-    let mut hasher = Sha256::new();
-    let mut buffer = [0u8; 1024];
 
-    while let Ok(byte_read) = file.read(&mut buffer) {
-        if byte_read == 0 {
-            break;
-        }
-        hasher.update(&buffer[..byte_read]);
-    }
-
-    let result = hasher.finalize();
-    Ok(format!("{:x}", result))
-}
 
 fn main() {
     let args = Args::parse();
@@ -57,15 +59,16 @@ fn main() {
         }
     };
 
-    let md5 = generate_md5(&mut file);
-    match md5 {
-        Ok(hash) => println!("MD5 Hash is: {}", hash),
-        Err(e) => eprintln!("Failed to generate MD5: {}", e),
-    }
 
-    let sha256 = generate_sha256(&mut file);
-    match sha256 {
-        Ok(hash) => println!("Sha256 Hash is: {}", hash),
-        Err(e) => eprintln!("Failed to generate SHA256: {}", e),
-    }
+    let mut md5: Box<dyn DynDigest> = select_hasher("md5");
+    let md5_hash = generate_hash(&mut file, &mut md5).unwrap();
+    println!("MD5: \t{:#?}", md5_hash);
+
+    let mut sha1: Box<dyn DynDigest> = select_hasher("sha1");
+    let sha1_hash = generate_hash(&mut file, &mut sha1).unwrap();
+    println!("Sha1: \t{:#?}", sha1_hash);
+
+    let mut sha256: Box<dyn DynDigest> = select_hasher("sha256");
+    let sha256_hash = generate_hash(&mut file, &mut sha256).unwrap();
+    println!("Sha256: {:#?}", sha256_hash);
 }
