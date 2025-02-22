@@ -1,7 +1,7 @@
 use clap::Parser;
-use std::fs::File;
-use std::io::{self, Seek, Read};
 use digest::DynDigest;
+use std::fs::File;
+use std::io::{self, Read, Seek};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -42,11 +42,9 @@ fn generate_hash(file: &mut File, hash: &mut Box<dyn DynDigest>) -> io::Result<S
         hash.update(&buffer[..byte_read]);
     }
 
-    let result =  hash.finalize_reset();
+    let result = hash.finalize_reset();
     Ok(bytes_to_hex_string(&result))
 }
-
-
 
 fn main() {
     let args = Args::parse();
@@ -58,7 +56,6 @@ fn main() {
             return;
         }
     };
-
 
     let mut md5: Box<dyn DynDigest> = select_hasher("md5");
     let md5_hash = generate_hash(&mut file, &mut md5).unwrap();
