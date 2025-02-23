@@ -11,9 +11,8 @@ struct Args {
 }
 
 fn open_file(path: &String) -> Result<File, std::io::Error> {
-    let file: File = File::open(path)?; // Try to open the file
-    Ok(file) // If successful, return the file
-}
+    let file: File = File::open(path)?;
+    Ok(file) }
 
 fn select_hasher(s: &str) -> Box<dyn DynDigest> {
     match s {
@@ -68,4 +67,61 @@ fn main() {
     let mut sha256: Box<dyn DynDigest> = select_hasher("sha256");
     let sha256_hash = generate_hash(&mut file, &mut sha256).unwrap();
     println!("Sha256: {:#?}", sha256_hash);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const TEST_FILE: &str = "./test/test.txt";
+
+    fn create_test_args() -> Args {
+        Args {
+            fpath: TEST_FILE.to_string(),
+        }
+    }
+
+    #[test]
+    fn args_fpath_should_be_string() {
+        let args = create_test_args();
+        assert_eq!(args.fpath, TEST_FILE);
+    }
+
+    #[test]
+    fn should_open_file() {
+        let args = create_test_args();
+        assert!(open_file(&args.fpath).is_ok());
+    }
+
+    #[test]
+    fn should_not_find_non_existant_file() {
+        let args = Args {
+            fpath: String::from("./doesnotexist.txt"),
+        };
+        assert!(open_file(&args.fpath).is_err());
+    }
+
+    #[test]
+    fn should_generate_md5() {
+        // md5 d8e8fca2dc0f896fd7cb4cb0031ba249  test/test.txt
+        let args = create_test_args();
+        let mut algo: Box<dyn DynDigest> = select_hasher("md5");
+        let mut file = open_file(&args.fpath).unwrap();
+        assert_eq!(
+            generate_hash(&mut file, &mut algo).unwrap(),
+            "d8e8fca2dc0f896fd7cb4cb0031ba249"
+        );
+    }
+
+    #[test]
+    fn should_generate_sha256() {
+        // f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2  ./test/test.txt
+        let args = create_test_args();
+        let mut algo: Box<dyn DynDigest> = select_hasher("sha256");
+        let mut file = open_file(&args.fpath).unwrap();
+        assert_eq!(
+            generate_hash(&mut file, &mut algo).unwrap(),
+            "f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2"
+        );
+    }
 }
